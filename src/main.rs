@@ -1,14 +1,13 @@
 extern crate sdl2;
 
 use sdl2::event::Event;
+use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
-use sdl2::rect::Point;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 use std::f64::consts::PI;
-use std::time::{Duration, Instant};
-
+use std::time::Instant;
 
 const WIDTH: u32 = 800;
 const HEIGHT: u32 = 800;
@@ -26,6 +25,8 @@ pub fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
+
+    let camera = Vec3d::default();
 
     let mesh_cube = Mesh {
         tris: vec![
@@ -335,32 +336,81 @@ pub fn main() {
             tri_translated.p[1].z = tri_rotated_zx.p[1].z + 3.0;
             tri_translated.p[2].z = tri_rotated_zx.p[2].z + 3.0;
 
-            let mut tri_projected = Triangle {
-                p: [
-                    multiply_matrix_vector(&tri_translated.p[0], &mat_proj),
-                    multiply_matrix_vector(&tri_translated.p[1], &mat_proj),
-                    multiply_matrix_vector(&tri_translated.p[2], &mat_proj),
-                ],
+            let line1 = Vec3d {
+                x: tri_translated.p[1].x - tri_translated.p[0].x,
+                y: tri_translated.p[1].y - tri_translated.p[0].y,
+                z: tri_translated.p[1].z - tri_translated.p[0].z,
             };
 
-            // Scale into view.
-            tri_projected.p[0].x += 1.0;
-            tri_projected.p[0].y += 1.0;
-            tri_projected.p[1].x += 1.0;
-            tri_projected.p[1].y += 1.0;
-            tri_projected.p[2].x += 1.0;
-            tri_projected.p[2].y += 1.0;
+            let line2 = Vec3d {
+                x: tri_translated.p[2].x - tri_translated.p[0].x,
+                y: tri_translated.p[2].y - tri_translated.p[0].y,
+                z: tri_translated.p[2].z - tri_translated.p[0].z,
+            };
 
-            tri_projected.p[0].x *= 0.5 * WIDTH as f64;
-            tri_projected.p[0].y *= 0.5 * HEIGHT as f64;
-            tri_projected.p[1].x *= 0.5 * WIDTH as f64;
-            tri_projected.p[1].y *= 0.5 * HEIGHT as f64;
-            tri_projected.p[2].x *= 0.5 * WIDTH as f64;
-            tri_projected.p[2].y *= 0.5 * HEIGHT as f64;
+            let mut normal = Vec3d {
+                x: line1.y * line2.z - line1.z * line2.y,
+                y: line1.z * line2.x - line1.x * line2.z,
+                z: line1.x * line2.y - line1.y * line2.x,
+            };
 
-            draw_triangle(&mut canvas, tri_projected, Color::RGB(255, 255, 255));
+            let l = (normal.x * normal.x + normal.y * normal.y + normal.z * normal.z).sqrt();
+            normal.x /= l;
+            normal.y /= l;
+            normal.z /= l;
+
+            let cull = normal.x * (tri_translated.p[0].x - camera.x)
+                + normal.y * (tri_translated.p[0].y - camera.y)
+                + normal.z * (tri_translated.p[0].z - camera.z);
+
+            if cull < 0.0 {
+                let mut light_direction = Vec3d {
+                    x: 0.0,
+                    y: 0.0,
+                    z: -1.0,
+                };
+                let l = (light_direction.x * light_direction.x
+                    + light_direction.y * light_direction.y
+                    + light_direction.z * light_direction.z)
+                    .sqrt();
+                light_direction.x /= l;
+                light_direction.y /= l;
+                light_direction.z /= l;
+
+                let dp = normal.x * light_direction.x
+                    + normal.y * light_direction.y
+                    + normal.z * light_direction.z;
+
+                let gs = ((dp + 1.0) * 0.5 * 255.0) as u8;
+                //let gs = (dp * 255.0) as u8;
+                let color = Color::RGB(gs, gs, gs);
+
+                let mut tri_projected = Triangle {
+                    p: [
+                        multiply_matrix_vector(&tri_translated.p[0], &mat_proj),
+                        multiply_matrix_vector(&tri_translated.p[1], &mat_proj),
+                        multiply_matrix_vector(&tri_translated.p[2], &mat_proj),
+                    ],
+                };
+
+                // Scale into view.
+                tri_projected.p[0].x += 1.0;
+                tri_projected.p[0].y += 1.0;
+                tri_projected.p[1].x += 1.0;
+                tri_projected.p[1].y += 1.0;
+                tri_projected.p[2].x += 1.0;
+                tri_projected.p[2].y += 1.0;
+
+                tri_projected.p[0].x *= 0.5 * WIDTH as f64;
+                tri_projected.p[0].y *= 0.5 * HEIGHT as f64;
+                tri_projected.p[1].x *= 0.5 * WIDTH as f64;
+                tri_projected.p[1].y *= 0.5 * HEIGHT as f64;
+                tri_projected.p[2].x *= 0.5 * WIDTH as f64;
+                tri_projected.p[2].y *= 0.5 * HEIGHT as f64;
+
+                draw_triangle(&mut canvas, tri_projected, color);
+            }
         }
-
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -383,6 +433,16 @@ pub struct Vec3d {
     pub x: f64,
     pub y: f64,
     pub z: f64,
+}
+
+impl Default for Vec3d {
+    fn default() -> Self {
+        Vec3d {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -416,13 +476,26 @@ pub fn multiply_matrix_vector(i: &Vec3d, m: &Mat4x4) -> Vec3d {
 }
 
 pub fn draw_triangle(canvas: &mut Canvas<Window>, tr: Triangle, color: Color) {
-    let point1 = Point::new(tr.p[0].x as i32, tr.p[0].y as i32);
-    let point2 = Point::new(tr.p[1].x as i32, tr.p[1].y as i32);
-    let point3 = Point::new(tr.p[2].x as i32, tr.p[2].y as i32);
-
-    canvas.set_draw_color(color);
-
-    canvas.draw_line(point1, point2).unwrap();
-    canvas.draw_line(point2, point3).unwrap();
-    canvas.draw_line(point3, point1).unwrap();
+    canvas
+        .filled_trigon(
+            tr.p[0].x as i16,
+            tr.p[0].y as i16,
+            tr.p[1].x as i16,
+            tr.p[1].y as i16,
+            tr.p[2].x as i16,
+            tr.p[2].y as i16,
+            color,
+        )
+        .unwrap();
+    // canvas
+    //     .trigon(
+    //         tr.p[0].x as i16,
+    //         tr.p[0].y as i16,
+    //         tr.p[1].x as i16,
+    //         tr.p[1].y as i16,
+    //         tr.p[2].x as i16,
+    //         tr.p[2].y as i16,
+    //         Color::RGB(0, 0, 0),
+    //     )
+    //     .unwrap();
 }
