@@ -7,6 +7,10 @@ use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 use std::f64::consts::PI;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::num::{ParseFloatError, ParseIntError};
+use std::path::Path;
 use std::time::Instant;
 
 const WIDTH: u32 = 800;
@@ -28,244 +32,14 @@ pub fn main() {
 
     let camera = Vec3d::default();
 
-    let mesh_cube = Mesh {
-        tris: vec![
-            // SOUTH
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                ],
-            },
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                ],
-            },
-            // EAST
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                ],
-            },
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                ],
-            },
-            // NORTH
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                ],
-            },
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                ],
-            },
-            // WEST
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                ],
-            },
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                ],
-            },
-            // TOP
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                ],
-            },
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 0.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                ],
-            },
-            // BOTTOM
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                ],
-            },
-            Triangle {
-                p: [
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 1.0,
-                    },
-                    Vec3d {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                    Vec3d {
-                        x: 1.0,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                ],
-            },
-        ],
-    };
+    let mut mesh = Mesh::new();
+    match mesh.load_from_file(Path::new("VideoShip.obj")) {
+        Err(err) => {
+            println!("Error loading file: {:?}", err);
+            return;
+        }
+        _ => {}
+    }
 
     let near = 0.1;
     let far = 1000.0;
@@ -285,6 +59,8 @@ pub fn main() {
     let mut theta: f64 = 0.0;
 
     let mut old = Instant::now();
+
+    let mut vec_triangles_to_raster = Vec::new();
 
     'render: loop {
         let new = Instant::now();
@@ -313,13 +89,14 @@ pub fn main() {
         mat_rot_x.m[2][2] = (theta * 0.5).cos();
         mat_rot_x.m[3][3] = 1.0;
 
-        for tri in &mesh_cube.tris {
+        for tri in &mesh.tris {
             let tri_rotated_z = Triangle {
                 p: [
                     multiply_matrix_vector(&tri.p[0], &mat_rot_z),
                     multiply_matrix_vector(&tri.p[1], &mat_rot_z),
                     multiply_matrix_vector(&tri.p[2], &mat_rot_z),
                 ],
+                color: Color::RGB(0, 0, 0),
             };
 
             let tri_rotated_zx = Triangle {
@@ -328,13 +105,14 @@ pub fn main() {
                     multiply_matrix_vector(&tri_rotated_z.p[1], &mat_rot_x),
                     multiply_matrix_vector(&tri_rotated_z.p[2], &mat_rot_x),
                 ],
+                color: tri_rotated_z.color,
             };
 
             let mut tri_translated = tri_rotated_zx;
 
-            tri_translated.p[0].z = tri_rotated_zx.p[0].z + 3.0;
-            tri_translated.p[1].z = tri_rotated_zx.p[1].z + 3.0;
-            tri_translated.p[2].z = tri_rotated_zx.p[2].z + 3.0;
+            tri_translated.p[0].z = tri_rotated_zx.p[0].z + 8.0;
+            tri_translated.p[1].z = tri_rotated_zx.p[1].z + 8.0;
+            tri_translated.p[2].z = tri_rotated_zx.p[2].z + 8.0;
 
             let line1 = Vec3d {
                 x: tri_translated.p[1].x - tri_translated.p[0].x,
@@ -383,7 +161,6 @@ pub fn main() {
 
                 let gs = ((dp + 1.0) * 0.5 * 255.0) as u8;
                 //let gs = (dp * 255.0) as u8;
-                let color = Color::RGB(gs, gs, gs);
 
                 let mut tri_projected = Triangle {
                     p: [
@@ -391,6 +168,7 @@ pub fn main() {
                         multiply_matrix_vector(&tri_translated.p[1], &mat_proj),
                         multiply_matrix_vector(&tri_translated.p[2], &mat_proj),
                     ],
+                    color: Color::RGB(gs, gs, gs),
                 };
 
                 // Scale into view.
@@ -408,9 +186,12 @@ pub fn main() {
                 tri_projected.p[2].x *= 0.5 * WIDTH as f64;
                 tri_projected.p[2].y *= 0.5 * HEIGHT as f64;
 
-                draw_triangle(&mut canvas, tri_projected, color);
+                vec_triangles_to_raster.push(tri_projected);
+
+                // draw_triangle(&mut canvas, tri_projected, color);
             }
         }
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -422,6 +203,20 @@ pub fn main() {
                 _ => {}
             }
         }
+
+        // Sort triangles
+        vec_triangles_to_raster.sort_by(|t1, t2| {
+            let z1 = (t1.p[0].z + t1.p[1].z + t1.p[2].z) / 3.0;
+            let z2 = (t2.p[0].z + t2.p[1].z + t2.p[2].z) / 3.0;
+
+            z2.total_cmp(&z1)
+        });
+
+        for tr in &vec_triangles_to_raster {
+            draw_triangle(&mut canvas, tr);
+        }
+        vec_triangles_to_raster.clear();
+
         canvas.present();
 
         old = new;
@@ -448,10 +243,92 @@ impl Default for Vec3d {
 #[derive(Debug, Copy, Clone)]
 pub struct Triangle {
     pub p: [Vec3d; 3],
+    pub color: Color,
 }
 
 pub struct Mesh {
     tris: Vec<Triangle>,
+}
+
+impl Mesh {
+    pub fn new() -> Mesh {
+        Mesh { tris: Vec::new() }
+    }
+
+    pub fn load_from_file(&mut self, file_path: &Path) -> Result<(), ObjParseError> {
+        let file = File::open(file_path)?;
+        let reader = BufReader::new(file);
+        let mut vertices: Vec<Vec3d> = Vec::new();
+        let mut triangles: Vec<Triangle> = Vec::new();
+
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                let fields: Vec<&str> = line.split_whitespace().collect();
+                if fields.is_empty() {
+                    continue;
+                }
+
+                match fields[0] {
+                    "v" => {
+                        if fields.len() < 4 {
+                            return Err(ObjParseError::InvalidData(String::from(
+                                "Invalid vertex line",
+                            )));
+                        }
+                        let x = fields[1].parse::<f64>()?;
+                        let y = fields[2].parse::<f64>()?;
+                        let z = fields[3].parse::<f64>()?;
+                        vertices.push(Vec3d { x, y, z });
+                    }
+                    "f" => {
+                        if fields.len() < 4 {
+                            return Err(ObjParseError::InvalidData(String::from(
+                                "Invalid face line",
+                            )));
+                        }
+                        let v1 = fields[1].parse::<usize>()?;
+                        let v2 = fields[2].parse::<usize>()?;
+                        let v3 = fields[3].parse::<usize>()?;
+                        triangles.push(Triangle {
+                            p: [vertices[v1 - 1], vertices[v2 - 1], vertices[v3 - 1]],
+                            color: Color::RGB(255, 255, 255),
+                        });
+                    }
+                    _ => continue,
+                }
+            }
+        }
+
+        self.tris = triangles;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum ObjParseError {
+    IoError(std::io::Error),
+    ParseError(ParseFloatError),
+    ParseErrorInt(ParseIntError),
+    InvalidData(String),
+}
+
+impl From<std::io::Error> for ObjParseError {
+    fn from(error: std::io::Error) -> Self {
+        ObjParseError::IoError(error)
+    }
+}
+
+impl From<ParseFloatError> for ObjParseError {
+    fn from(error: ParseFloatError) -> Self {
+        ObjParseError::ParseError(error)
+    }
+}
+
+impl From<ParseIntError> for ObjParseError {
+    fn from(error: ParseIntError) -> Self {
+        ObjParseError::ParseErrorInt(error)
+    }
 }
 
 pub struct Mat4x4 {
@@ -475,7 +352,7 @@ pub fn multiply_matrix_vector(i: &Vec3d, m: &Mat4x4) -> Vec3d {
     }
 }
 
-pub fn draw_triangle(canvas: &mut Canvas<Window>, tr: Triangle, color: Color) {
+pub fn draw_triangle(canvas: &mut Canvas<Window>, tr: &Triangle) {
     canvas
         .filled_trigon(
             tr.p[0].x as i16,
@@ -484,7 +361,7 @@ pub fn draw_triangle(canvas: &mut Canvas<Window>, tr: Triangle, color: Color) {
             tr.p[1].y as i16,
             tr.p[2].x as i16,
             tr.p[2].y as i16,
-            color,
+            tr.color,
         )
         .unwrap();
     // canvas
