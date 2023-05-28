@@ -1,3 +1,19 @@
 * 3D Engine
 
 This is a Rust implementation of the tutorial series from javidx9 (see first video here: https://www.youtube.com/watch?v=ih20l3pJoeU). The lessons are the commits in the history of this repository. The current final version is the mountain flying around.
+
+Thanks a lot javidx9! You are amazing!
+
+** Building
+
+This uses the sdl2 crate for Rust, so =sdl2= as it's dependencies need to be installed. Then it is a simple matter of =cargo build --release=.
+
+** Using
+
+The following keys can be used:
+ - =cursor up=: going up (height)
+ - =cursor down=: going down
+ - =a=: turn left
+ - =d=: turn right
+ - =w=: go forward
+ - =s=: go backwards
