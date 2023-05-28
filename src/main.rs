@@ -6,6 +6,8 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
+use core::panic;
+use std::collections::VecDeque;
 use std::f64::consts::PI;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -41,7 +43,7 @@ pub fn main() {
     let mut yaw = 0.0;
 
     let mut mesh = Mesh::new();
-    match mesh.load_from_file(Path::new("axis.obj")) {
+    match mesh.load_from_file(Path::new("mountains.obj")) {
         Err(err) => {
             println!("Error loading file: {:?}", err);
             return;
@@ -55,7 +57,7 @@ pub fn main() {
 
     let mat_proj = Mat4x4::make_projection(90.0, aspect_ratio, near, far);
 
-    let mut theta: f64 = 0.0;
+    let theta: f64 = 0.0;
 
     let mut old = Instant::now();
 
@@ -138,48 +140,66 @@ pub fn main() {
                     color: col,
                 };
 
-                let mut tri_projected = Triangle {
-                    p: [
-                        multiply_matrix_vector(&tri_viewed.p[0], &mat_proj),
-                        multiply_matrix_vector(&tri_viewed.p[1], &mat_proj),
-                        multiply_matrix_vector(&tri_viewed.p[2], &mat_proj),
-                    ],
-                    color: col,
-                };
+                let clipped_triangles = triangle_clip_against_plane(
+                    &Vec3d {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.1,
+                        w: 1.0,
+                    },
+                    &Vec3d {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 1.0,
+                        w: 1.0,
+                    },
+                    &tri_viewed,
+                );
 
-                tri_projected.p[0] = tri_projected.p[0].vec_div(tri_projected.p[0].w);
-                tri_projected.p[1] = tri_projected.p[1].vec_div(tri_projected.p[1].w);
-                tri_projected.p[2] = tri_projected.p[2].vec_div(tri_projected.p[2].w);
+                for t in clipped_triangles {
+                    let mut tri_projected = Triangle {
+                        p: [
+                            multiply_matrix_vector(&t.p[0], &mat_proj),
+                            multiply_matrix_vector(&t.p[1], &mat_proj),
+                            multiply_matrix_vector(&t.p[2], &mat_proj),
+                        ],
+                        color: t.color,
+                    };
 
-                tri_projected.p[0].x *= -1.0;
-                tri_projected.p[1].x *= -1.0;
-                tri_projected.p[2].x *= -1.0;
-                tri_projected.p[0].y *= -1.0;
-                tri_projected.p[1].y *= -1.0;
-                tri_projected.p[2].y *= -1.0;
+                    tri_projected.p[0] = tri_projected.p[0].vec_div(tri_projected.p[0].w);
+                    tri_projected.p[1] = tri_projected.p[1].vec_div(tri_projected.p[1].w);
+                    tri_projected.p[2] = tri_projected.p[2].vec_div(tri_projected.p[2].w);
 
-                let offset_view = Vec3d {
-                    x: 1.0,
-                    y: 1.0,
-                    z: 0.0,
-                    w: 1.0,
-                };
+                    tri_projected.p[0].x *= -1.0;
+                    tri_projected.p[1].x *= -1.0;
+                    tri_projected.p[2].x *= -1.0;
+                    tri_projected.p[0].y *= -1.0;
+                    tri_projected.p[1].y *= -1.0;
+                    tri_projected.p[2].y *= -1.0;
 
-                // Scale into view.
-                tri_projected.p[0] = tri_projected.p[0] + &offset_view;
-                tri_projected.p[1] = tri_projected.p[1] + &offset_view;
-                tri_projected.p[2] = tri_projected.p[2] + &offset_view;
+                    let offset_view = Vec3d {
+                        x: 1.0,
+                        y: 1.0,
+                        z: 0.0,
+                        w: 1.0,
+                    };
 
-                tri_projected.p[0].x *= 0.5 * WIDTH as f64;
-                tri_projected.p[0].y *= 0.5 * HEIGHT as f64;
-                tri_projected.p[1].x *= 0.5 * WIDTH as f64;
-                tri_projected.p[1].y *= 0.5 * HEIGHT as f64;
-                tri_projected.p[2].x *= 0.5 * WIDTH as f64;
-                tri_projected.p[2].y *= 0.5 * HEIGHT as f64;
+                    // Scale into view.
+                    tri_projected.p[0] = tri_projected.p[0] + &offset_view;
+                    tri_projected.p[1] = tri_projected.p[1] + &offset_view;
+                    tri_projected.p[2] = tri_projected.p[2] + &offset_view;
 
-                vec_triangles_to_raster.push(tri_projected);
+                    tri_projected.p[0].x *= 0.5 * WIDTH as f64;
+                    tri_projected.p[0].y *= 0.5 * HEIGHT as f64;
+                    tri_projected.p[1].x *= 0.5 * WIDTH as f64;
+                    tri_projected.p[1].y *= 0.5 * HEIGHT as f64;
+                    tri_projected.p[2].x *= 0.5 * WIDTH as f64;
+                    tri_projected.p[2].y *= 0.5 * HEIGHT as f64;
 
-                // draw_triangle(&mut canvas, tri_projected, color);
+                    vec_triangles_to_raster.push(tri_projected);
+
+                    // draw_triangle(&mut canvas, tri_projected, color);
+                }
             }
         }
 
@@ -211,11 +231,11 @@ pub fn main() {
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
                     ..
-                } => yaw -= 80.0 * elapsed,
+                } => yaw -= 20.0 * elapsed,
                 Event::KeyDown {
                     keycode: Some(Keycode::D),
                     ..
-                } => yaw += 80.0 * elapsed,
+                } => yaw += 20.0 * elapsed,
                 Event::KeyDown {
                     keycode: Some(Keycode::W),
                     ..
@@ -236,8 +256,92 @@ pub fn main() {
             z2.total_cmp(&z1)
         });
 
-        for tr in &vec_triangles_to_raster {
-            draw_triangle(&mut canvas, tr);
+        for tri_to_raster in &vec_triangles_to_raster {
+            let mut list_triangles = VecDeque::new();
+            list_triangles.push_back(*tri_to_raster);
+            let mut new_triangles = 1;
+
+            for p in 0..4 {
+                while new_triangles > 0 {
+                    let test = list_triangles.pop_front().unwrap();
+
+                    new_triangles -= 1;
+
+                    let triangles = match p {
+                        0 => triangle_clip_against_plane(
+                            &Vec3d {
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                w: 1.0,
+                            },
+                            &Vec3d {
+                                x: 0.0,
+                                y: 1.0,
+                                z: 0.0,
+                                w: 1.0,
+                            },
+                            &test,
+                        ),
+                        1 => triangle_clip_against_plane(
+                            &Vec3d {
+                                x: 0.0,
+                                y: HEIGHT as f64 - 1.0,
+                                z: 0.0,
+                                w: 1.0,
+                            },
+                            &Vec3d {
+                                x: 0.0,
+                                y: -1.0,
+                                z: 0.0,
+                                w: 1.0,
+                            },
+                            &test,
+                        ),
+                        2 => triangle_clip_against_plane(
+                            &Vec3d {
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                w: 1.0,
+                            },
+                            &Vec3d {
+                                x: 1.0,
+                                y: 0.0,
+                                z: 0.0,
+                                w: 1.0,
+                            },
+                            &test,
+                        ),
+                        3 => triangle_clip_against_plane(
+                            &Vec3d {
+                                x: WIDTH as f64 - 1.0,
+                                y: 0.0,
+                                z: 0.0,
+                                w: 1.0,
+                            },
+                            &Vec3d {
+                                x: -1.0,
+                                y: 0.0,
+                                z: 0.0,
+                                w: 1.0,
+                            },
+                            &test,
+                        ),
+                        _ => panic!("Clipping against more than 4 planes!!!")
+                    };
+
+                    for w in triangles {
+                        list_triangles.push_back(w);
+                    }
+                }
+                new_triangles = list_triangles.len();
+            }
+
+            for tr in list_triangles {
+                draw_triangle(&mut canvas, &tr);
+            }
+            
         }
         vec_triangles_to_raster.clear();
 
@@ -337,6 +441,113 @@ impl Sub<&Vec3d> for Vec3d {
             w: self.w - rhs.w,
         }
     }
+}
+
+pub fn vector_intersect_plane(
+    plane_p: &Vec3d,
+    plane_n: &Vec3d,
+    line_start: &Vec3d,
+    line_end: &Vec3d,
+) -> Vec3d {
+    let plane_n = plane_n.normalise();
+
+    let plane_d = -plane_n.dot(plane_p);
+    let ad = line_start.dot(&plane_n);
+    let bd = line_end.dot(&plane_n);
+    let t = (-plane_d - ad) / (bd - ad);
+
+    let line_start_to_end = *line_end - line_start;
+    let line_to_intersect = line_start_to_end.vec_mul(t);
+
+    *line_start + &line_to_intersect
+}
+
+pub fn triangle_clip_against_plane(
+    plane_p: &Vec3d,
+    plane_n: &Vec3d,
+    in_tri: &Triangle,
+) -> Vec<Triangle> {
+    let plane_n = plane_n.normalise();
+
+    let dist =
+        |p: &Vec3d| plane_n.x * p.x + plane_n.y * p.y + plane_n.z * p.z - plane_n.dot(&plane_p);
+
+    let d0 = dist(&in_tri.p[0]);
+    let d1 = dist(&in_tri.p[1]);
+    let d2 = dist(&in_tri.p[2]);
+
+    let mut inside_points: [Vec3d; 3] = [Vec3d::default(), Vec3d::default(), Vec3d::default()];
+    let mut inside_point_count = 0;
+    let mut outside_points: [Vec3d; 3] = [Vec3d::default(), Vec3d::default(), Vec3d::default()];
+    let mut outside_point_count = 0;
+
+    if d0 > 0.0 {
+        inside_points[inside_point_count] = in_tri.p[0];
+        inside_point_count += 1;
+    } else {
+        outside_points[outside_point_count] = in_tri.p[0];
+        outside_point_count += 1;
+    }
+
+    if d1 > 0.0 {
+        inside_points[inside_point_count] = in_tri.p[1];
+        inside_point_count += 1;
+    } else {
+        outside_points[outside_point_count] = in_tri.p[1];
+        outside_point_count += 1;
+    }
+
+    if d2 > 0.0 {
+        inside_points[inside_point_count] = in_tri.p[2];
+        inside_point_count += 1;
+    } else {
+        outside_points[outside_point_count] = in_tri.p[2];
+        outside_point_count += 1;
+    }
+
+    if inside_point_count == 0 {
+        return vec![];
+    } else if inside_point_count == 3 {
+        return vec![*in_tri];
+    }
+
+    if inside_point_count == 1 && outside_point_count == 2 {
+        return vec![Triangle {
+            p: [
+                inside_points[0],
+                vector_intersect_plane(plane_p, &plane_n, &inside_points[0], &outside_points[0]),
+                vector_intersect_plane(plane_p, &plane_n, &inside_points[0], &outside_points[1]),
+            ],
+            color: in_tri.color /*Color::RGB(0, 0, 255)*/,
+        }];
+    }
+
+    if inside_point_count == 2 && outside_point_count == 1 {
+        let new_point =
+            vector_intersect_plane(plane_p, &plane_n, &inside_points[0], &outside_points[0]);
+
+        return vec![
+            Triangle {
+                p: [inside_points[0], inside_points[1], new_point],
+                color: in_tri.color /*Color::RGB(0, 255, 0)*/,
+            },
+            Triangle {
+                p: [
+                    inside_points[1],
+                    new_point,
+                    vector_intersect_plane(
+                        plane_p,
+                        &plane_n,
+                        &inside_points[1],
+                        &outside_points[0],
+                    ),
+                ],
+                color: in_tri.color /*Color::RGB(255, 0, 0)*/,
+            },
+        ];
+    }
+
+    panic!("Error: unexpected triangle clippping");
 }
 
 #[derive(Debug, Copy, Clone)]
