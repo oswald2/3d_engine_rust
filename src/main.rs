@@ -31,10 +31,17 @@ pub fn main() {
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let camera = Vec3d::default();
+    let mut camera = Vec3d::default();
+    // let look_dir = Vec3d {
+    //     x: 0.0,
+    //     y: 0.0,
+    //     z: 1.0,
+    //     w: 1.0,
+    // };
+    let mut yaw = 0.0;
 
     let mut mesh = Mesh::new();
-    match mesh.load_from_file(Path::new("teapot.obj")) {
+    match mesh.load_from_file(Path::new("axis.obj")) {
         Err(err) => {
             println!("Error loading file: {:?}", err);
             return;
@@ -56,13 +63,12 @@ pub fn main() {
 
     'render: loop {
         let new = Instant::now();
-
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
 
         let elapsed = (new - old).as_secs_f64();
 
-        theta += 1.0 * elapsed;
+        //theta += 1.0 * elapsed;
 
         let mat_rot_z = Mat4x4::make_rotation_z(theta * 0.5);
         let mat_rot_x = Mat4x4::make_rotation_x(theta);
@@ -71,6 +77,25 @@ pub fn main() {
 
         let mut mat_world = &mat_rot_z * &mat_rot_x;
         mat_world = &mat_world * &mat_trans;
+
+        let up = Vec3d {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+            w: 1.0,
+        };
+        let target = Vec3d {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+            w: 1.0,
+        };
+        let mat_camera_rot = Mat4x4::make_rotation_y(yaw);
+        let look_dir = multiply_matrix_vector(&target, &mat_camera_rot);
+        let target = camera + &look_dir;
+
+        let mat_camera = Mat4x4::point_at(&camera, &target, &up);
+        let mat_view = mat_camera.quick_inverse();
 
         for tri in &mesh.tris {
             let tri_transformed = Triangle {
@@ -88,7 +113,7 @@ pub fn main() {
             let normal = line1.cross(&line2).normalise();
 
             let camera_ray = tri_transformed.p[0] - &camera;
-            
+
             let cull = normal.dot(&camera_ray);
 
             if cull < 0.0 {
@@ -97,26 +122,47 @@ pub fn main() {
                     y: 0.0,
                     z: -1.0,
                     w: 1.0,
-                }.normalise();
+                }
+                .normalise();
 
                 let dp = normal.dot(&light_direction);
                 let gs = ((dp + 1.0) * 0.5 * 255.0) as u8;
+                let col = Color::RGB(gs, gs, gs);
+
+                let tri_viewed = Triangle {
+                    p: [
+                        multiply_matrix_vector(&tri_transformed.p[0], &mat_view),
+                        multiply_matrix_vector(&tri_transformed.p[1], &mat_view),
+                        multiply_matrix_vector(&tri_transformed.p[2], &mat_view),
+                    ],
+                    color: col,
+                };
 
                 let mut tri_projected = Triangle {
                     p: [
-                        multiply_matrix_vector(&tri_transformed.p[0], &mat_proj),
-                        multiply_matrix_vector(&tri_transformed.p[1], &mat_proj),
-                        multiply_matrix_vector(&tri_transformed.p[2], &mat_proj),
+                        multiply_matrix_vector(&tri_viewed.p[0], &mat_proj),
+                        multiply_matrix_vector(&tri_viewed.p[1], &mat_proj),
+                        multiply_matrix_vector(&tri_viewed.p[2], &mat_proj),
                     ],
-                    color: Color::RGB(gs, gs, gs),
+                    color: col,
                 };
 
                 tri_projected.p[0] = tri_projected.p[0].vec_div(tri_projected.p[0].w);
                 tri_projected.p[1] = tri_projected.p[1].vec_div(tri_projected.p[1].w);
                 tri_projected.p[2] = tri_projected.p[2].vec_div(tri_projected.p[2].w);
 
+                tri_projected.p[0].x *= -1.0;
+                tri_projected.p[1].x *= -1.0;
+                tri_projected.p[2].x *= -1.0;
+                tri_projected.p[0].y *= -1.0;
+                tri_projected.p[1].y *= -1.0;
+                tri_projected.p[2].y *= -1.0;
+
                 let offset_view = Vec3d {
-                    x: 1.0, y: 1.0, z: 0.0, w: 1.0 
+                    x: 1.0,
+                    y: 1.0,
+                    z: 0.0,
+                    w: 1.0,
                 };
 
                 // Scale into view.
@@ -137,6 +183,8 @@ pub fn main() {
             }
         }
 
+        let forward = look_dir.vec_mul(160.0 * elapsed);
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -144,7 +192,38 @@ pub fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'render,
-                //Event::KeyDown { keycode: Some(Keycode::A), .. } => theta += 0.1,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Up),
+                    ..
+                } => camera.y += 160.0 * elapsed,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Down),
+                    ..
+                } => camera.y -= 160.0 * elapsed,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => camera.x -= 160.0 * elapsed,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => camera.x += 160.0 * elapsed,
+                Event::KeyDown {
+                    keycode: Some(Keycode::A),
+                    ..
+                } => yaw -= 80.0 * elapsed,
+                Event::KeyDown {
+                    keycode: Some(Keycode::D),
+                    ..
+                } => yaw += 80.0 * elapsed,
+                Event::KeyDown {
+                    keycode: Some(Keycode::W),
+                    ..
+                } => camera = camera + &forward,
+                Event::KeyDown {
+                    keycode: Some(Keycode::S),
+                    ..
+                } => camera = camera - &forward,
                 _ => {}
             }
         }
@@ -447,6 +526,71 @@ impl Mat4x4 {
         matrix.m[3][2] = (-far * near) / far_near;
         matrix.m[2][3] = 1.0;
         matrix.m[3][3] = 0.0;
+
+        matrix
+    }
+
+    pub fn point_at(pos: &Vec3d, target: &Vec3d, up: &Vec3d) -> Mat4x4 {
+        let new_forward = (*target - pos).normalise();
+
+        let a = new_forward.vec_mul(up.dot(&new_forward));
+        let new_up = (*up - &a).normalise();
+
+        let new_right = new_up.cross(&new_forward);
+
+        let mut matrix = Mat4x4::default();
+
+        matrix.m[0][0] = new_right.x;
+        matrix.m[0][1] = new_right.y;
+        matrix.m[0][2] = new_right.z;
+        matrix.m[0][3] = 0.0;
+
+        matrix.m[1][0] = new_up.x;
+        matrix.m[1][1] = new_up.y;
+        matrix.m[1][2] = new_up.z;
+        matrix.m[1][3] = 0.0;
+
+        matrix.m[2][0] = new_forward.x;
+        matrix.m[2][1] = new_forward.y;
+        matrix.m[2][2] = new_forward.z;
+        matrix.m[2][3] = 0.0;
+
+        matrix.m[3][0] = pos.x;
+        matrix.m[3][1] = pos.y;
+        matrix.m[3][2] = pos.z;
+        matrix.m[3][3] = 1.0;
+
+        matrix
+    }
+
+    pub fn quick_inverse(&self) -> Mat4x4 {
+        let mut matrix = Mat4x4::default();
+
+        matrix.m[0][0] = self.m[0][0];
+        matrix.m[0][1] = self.m[1][0];
+        matrix.m[0][2] = self.m[2][0];
+        matrix.m[0][3] = 0.0;
+
+        matrix.m[1][0] = self.m[0][1];
+        matrix.m[1][1] = self.m[1][1];
+        matrix.m[1][2] = self.m[2][1];
+        matrix.m[1][3] = 0.0;
+
+        matrix.m[2][0] = self.m[0][2];
+        matrix.m[2][1] = self.m[1][2];
+        matrix.m[2][2] = self.m[2][2];
+        matrix.m[2][3] = 0.0;
+
+        matrix.m[3][0] = -(self.m[3][0] * matrix.m[0][0]
+            + self.m[3][1] * matrix.m[1][0]
+            + self.m[3][2] * matrix.m[2][0]);
+        matrix.m[3][1] = -(self.m[3][0] * matrix.m[0][1]
+            + self.m[3][1] * matrix.m[1][1]
+            + self.m[3][2] * matrix.m[2][1]);
+        matrix.m[3][2] = -(self.m[3][0] * matrix.m[0][2]
+            + self.m[3][1] * matrix.m[1][2]
+            + self.m[3][2] * matrix.m[2][2]);
+        matrix.m[3][3] = 1.0;
 
         matrix
     }
